@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM Template for Watch-Over-Dashboard deployment
+
+Globals:
+  Function:
+    Runtime: python3.8
+    Timeout: 5
+    MemorySize: 128
+    Architectures:
+      - arm64
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: FargateDemoApp
+#  Region:
+#    Type: String
+#    Default: "ap-northeast-1"
+  YahooClientID:
+    Type: String
+    Default: "your yahoo clientID"  
+  LineToken:
+    Type: String
+    Default: "your LINE Token"
+  NameTag:
+    Type: String
+    Default: 'FargateDempApp'
+
+Resources:
+
+  LambdaFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: function/
+      FunctionName: !Sub ${ProjectName}Function
+      Handler: app.lambda_handler
+      Environment:
+        Variables:
+          APP_ID: !Sub ${YahooClientID}
+          ChannelAccessToken: !Sub ${LineToken}
+      Events:
+        ApiTrigger:
+          Type: Api 
+          Properties:
+            Path: /weather
+            Method: post
+      Role: !GetAtt LambdaFunctionRole.Arn
+      #Tags:
+      #  Name: !Sub ${NameTag}
+  LambdaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LambdaFunction}
+      RetentionInDays: 7
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "sts:AssumeRole"
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: !Sub ${ProjectName}Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: 
+                  - "arn:aws:logs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "apigateway:*"
+                Resource:
+                  - "arn:aws:lambda::${AWS::AccountId}:*"
+
+Outputs:
+  LambdaFunctionApi:
+    Description: "API Gateway endpoint URL for Prod stage for LambdaFunction"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/weather/"
+  LambdaFunction:
+    Description: "LambdaFunction ARN"
+    Value: !GetAtt LambdaFunction.Arn
+  LambdaFunctionIamRole:
+    Description: "Implicit IAM Role created for LambdaFunction"
+    Value: !GetAtt LambdaFunctionRole.Arn
